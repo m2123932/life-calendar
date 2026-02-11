@@ -3,7 +3,7 @@
 <head>
     <meta charset="UTF-8">
     <meta name="viewport" content="width=device-width, initial-scale=1.0">
-    <title>永恆人生週曆 - 雲端同步版</title>
+    <title>🍂 一生的週行事曆</title>
     <style>
         :root {
             --wood-dark: #3e2723; --wood-med: #5d4037; --paper: #fdfaf1;
@@ -22,18 +22,16 @@
             width: 90%; max-width: 850px; border: 3px solid var(--wood-med);
         }
         .user-section { display: flex; justify-content: space-between; align-items: center; margin-bottom: 15px; background: #efebe9; padding: 10px; border-radius: 8px; }
-        .user-profile { display: flex; align-items: center; gap: 10px; }
         .user-pic { width: 35px; height: 35px; border-radius: 50%; border: 2px solid var(--wood-med); }
-        .control-row { display: grid; grid-template-columns: 1fr 1fr; gap: 15px; margin: 15px 0; padding: 15px 0; border-top: 1px dashed #ccc; border-bottom: 1px dashed #ccc; }
+        .control-row { display: grid; grid-template-columns: 1fr 1fr; gap: 15px; margin: 15px 0; border-top: 1px dashed #ccc; border-bottom: 1px dashed #ccc; padding: 15px 0; }
         .calendar-outer { background: var(--paper); padding: 20px; border-radius: 8px; overflow-x: auto; max-width: 95vw; box-shadow: inset 0 0 10px rgba(0,0,0,0.2); }
         .grid { display: grid; grid-template-columns: repeat(52, 18px); gap: 3px; user-select: none; }
         .cell { width: 18px; height: 18px; border: 1px solid rgba(0,0,0,0.1); font-size: 11px; text-align: center; line-height: 18px; cursor: pointer; background: #ffffffcc; box-sizing: border-box; }
         .cell.past { filter: brightness(0.95); border-style: dotted; }
         .cell.present { border: 2px solid #d32f2f; animation: pulse 2s infinite; }
         .cell.selected { outline: 2px solid #ff5722; z-index: 10; transform: scale(1.1); }
-        .cell.target-highlight { outline: 3px solid #000; animation: highlight-blink 1s 3; }
         @keyframes pulse { 0%, 100% { opacity: 1; } 50% { opacity: 0.5; } }
-        @keyframes highlight-blink { 0%, 100% { transform: scale(1); background: yellow; } 50% { transform: scale(1.4); background: white; } }
+        
         #editor-modal { display: none; position: fixed; top: 50%; left: 50%; transform: translate(-50%, -50%); background: var(--paper); padding: 25px; border-radius: 15px; box-shadow: 0 0 50px rgba(0,0,0,0.8); z-index: 100; border: 5px solid var(--wood-med); text-align: center; }
         .color-palette { display: grid; grid-template-columns: repeat(4, 1fr); gap: 10px; margin: 15px 0; }
         .color-opt { width: 35px; height: 35px; border-radius: 6px; cursor: pointer; border: 1px solid #ccc; }
@@ -46,33 +44,35 @@
 
 <div class="header-card">
     <div class="user-section">
-        <div class="user-profile">
+        <div style="display:flex; align-items:center; gap:10px;">
             <img id="user-img" class="user-pic" style="display:none">
             <span id="user-name">訪客模式</span>
         </div>
         <button id="auth-btn">Google 登入同步</button>
     </div>
-    <h2>⌛ 永恆人生週曆</h2>
+    <h2>🍂 一生的週行事曆</h2>
+    <div id="stats" style="margin-bottom:10px; font-weight:bold; color:var(--wood-med);">
+        目前是人生第 <span id="cur-week">-</span> 週 | 剩餘 <span id="rem-week">-</span> 週
+    </div>
     <div class="control-row">
         <div>👶 出生日期：<input type="date" id="birthday-input"></div>
         <div>🔍 跳轉日期：<input type="date" id="jump-date"></div>
     </div>
-    <div id="sync-info" style="font-size: 0.75rem; color: #8d6e63;">※ 登入後可跨裝置同步紀錄</div>
 </div>
 
 <div class="calendar-outer">
     <div class="grid" id="grid"></div>
 </div>
 
-<div class="overlay" id="overlay"></div>
+<div class="overlay" id="overlay" onclick="closeModal()"></div>
 <div id="editor-modal">
     <h3>編輯人生格點</h3>
-    <input type="text" id="cell-text" placeholder="字" maxlength="1" style="width: 50px; text-align: center; font-size: 1.5rem;">
+    <input type="text" id="cell-text" placeholder="字" maxlength="1" style="width: 50px; text-align: center; font-size: 1.5rem; border:1px solid #ccc;">
     <div class="color-palette" id="palette"></div>
     <div style="display:flex; flex-direction:column; gap:8px;">
         <button id="save-btn">儲存變更</button>
         <button style="background:#d7ccc8; color:#3e2723;" id="clear-btn">清空內容</button>
-        <button style="background:#999;" id="close-btn">取消</button>
+        <button style="background:#999;" onclick="closeModal()">取消</button>
     </div>
 </div>
 
@@ -81,13 +81,14 @@
     import { getFirestore, doc, setDoc, getDoc } from "https://www.gstatic.com/firebasejs/10.7.1/firebase-firestore.js";
     import { getAuth, signInWithPopup, GoogleAuthProvider, onAuthStateChanged, signOut } from "https://www.gstatic.com/firebasejs/10.7.1/firebase-auth.js";
 
+    // 使用你上傳圖片中的 Config
     const firebaseConfig = {
         apiKey: "AIzaSyCyeJQKaGgswiw0W-RjgxeRw2LYM_2Uyas",
         authDomain: "life-calendar-361db.firebaseapp.com",
         projectId: "life-calendar-361db",
         storageBucket: "life-calendar-361db.firebasestorage.app",
-        messagingSenderId: "801402347323",
-        appId: "1:801402347323:web:a5ff8adfe544eaf1927d8a"
+        messagingSenderId: "801402347327",
+        appId: "1:801402347327:web:a5ff8adfe544eaf1927d8a"
     };
 
     const app = initializeApp(firebaseConfig);
@@ -96,20 +97,14 @@
     const provider = new GoogleAuthProvider();
 
     let currentUser = null;
-    let lifeData = JSON.parse(localStorage.getItem('lifeData')) || {};
+    let lifeData = {};
     let selectedIndices = [];
     let isDragging = false;
     let currentSelectedColor = null;
     const totalWeeks = 90 * 52;
     const colors = ['#FFB7B2', '#FFDAC1', '#E2F0CB', '#B5EAD7', '#C7CEEA', '#F3FFE3', '#FFCCF9', '#B2E2F2'];
 
-    // UI Elements
-    const grid = document.getElementById('grid');
-    const authBtn = document.getElementById('auth-btn');
-    const bdayInput = document.getElementById('birthday-input');
-    const palette = document.getElementById('palette');
-
-    // 初始化粉彩調色盤
+    // 初始化調色盤
     colors.forEach(c => {
         const div = document.createElement('div');
         div.className = 'color-opt';
@@ -119,14 +114,8 @@
             div.classList.add('active');
             currentSelectedColor = c;
         };
-        palette.appendChild(div);
+        document.getElementById('palette').appendChild(div);
     });
-
-    // 登入邏輯
-    authBtn.onclick = () => {
-        if (currentUser) signOut(auth);
-        else signInWithPopup(auth, provider);
-    };
 
     onAuthStateChanged(auth, async (user) => {
         currentUser = user;
@@ -134,40 +123,45 @@
             document.getElementById('user-name').innerText = user.displayName;
             document.getElementById('user-img').src = user.photoURL;
             document.getElementById('user-img').style.display = 'block';
-            authBtn.innerText = '登出帳號';
-            document.getElementById('sync-info').innerText = '✅ 雲端同步已開啟';
+            document.getElementById('auth-btn').innerText = '登出';
             
             const docSnap = await getDoc(doc(db, "users", user.uid));
             if (docSnap.exists()) {
                 const data = docSnap.data();
                 lifeData = data.lifeData || {};
-                if (data.birthday) localStorage.setItem('birthday', data.birthday);
+                if (data.birthday) {
+                    document.getElementById('birthday-input').value = data.birthday;
+                    localStorage.setItem('birthday', data.birthday);
+                }
             }
-        } else {
-            document.getElementById('user-name').innerText = '訪客模式';
-            document.getElementById('user-img').style.display = 'none';
-            authBtn.innerText = 'Google 登入同步';
         }
-        bdayInput.value = localStorage.getItem('birthday') || '';
         renderGrid();
     });
 
+    document.getElementById('auth-btn').onclick = () => {
+        if (currentUser) signOut(auth);
+        else signInWithPopup(auth, provider);
+    };
+
     async function sync() {
-        localStorage.setItem('lifeData', JSON.stringify(lifeData));
         if (currentUser) {
             await setDoc(doc(db, "users", currentUser.uid), {
                 lifeData: lifeData,
-                birthday: bdayInput.value
+                birthday: document.getElementById('birthday-input').value
             });
         }
     }
 
     function renderGrid() {
+        const grid = document.getElementById('grid');
         grid.innerHTML = '';
-        const bday = bdayInput.value;
+        const bday = document.getElementById('birthday-input').value || localStorage.getItem('birthday');
         if (!bday) return;
+
         const birthDate = new Date(bday);
         const passedWeeks = Math.floor((new Date() - birthDate) / (1000 * 60 * 60 * 24 * 7));
+        document.getElementById('cur-week').innerText = passedWeeks;
+        document.getElementById('rem-week').innerText = Math.max(0, totalWeeks - passedWeeks);
 
         for (let i = 0; i < totalWeeks; i++) {
             const cell = document.createElement('div');
@@ -181,23 +175,30 @@
                 cell.innerText = lifeData[i].text || '';
             }
 
-            cell.onmousedown = () => { isDragging = true; selectedIndices = [i]; clearSelection(); cell.classList.add('selected'); };
+            cell.onmousedown = () => { isDragging = true; selectedIndices = [i]; cell.classList.add('selected'); };
             cell.onmouseover = () => { if (isDragging && !selectedIndices.includes(i)) { selectedIndices.push(i); cell.classList.add('selected'); } };
             grid.appendChild(cell);
         }
     }
 
-    bdayInput.onchange = () => { localStorage.setItem('birthday', bdayInput.value); renderGrid(); sync(); };
+    document.getElementById('birthday-input').onchange = () => {
+        localStorage.setItem('birthday', document.getElementById('birthday-input').value);
+        renderGrid();
+        sync();
+    };
 
-    window.onmouseup = () => { if (isDragging) { isDragging = false; openModal(); } };
-    function clearSelection() { document.querySelectorAll('.cell.selected').forEach(c => c.classList.remove('selected')); }
-    function openModal() { document.getElementById('overlay').style.display = 'block'; document.getElementById('editor-modal').style.display = 'block'; }
-    function closeModal() { document.getElementById('overlay').style.display = 'none'; document.getElementById('editor-modal').style.display = 'none'; clearSelection(); }
+    window.onmouseup = () => { if (isDragging) { isDragging = false; document.getElementById('overlay').style.display = 'block'; document.getElementById('editor-modal').style.display = 'block'; } };
+    
+    window.closeModal = () => { 
+        document.getElementById('overlay').style.display = 'none'; 
+        document.getElementById('editor-modal').style.display = 'none'; 
+        document.querySelectorAll('.cell.selected').forEach(c => c.classList.remove('selected'));
+    };
     
     document.getElementById('save-btn').onclick = () => {
         const txt = document.getElementById('cell-text').value;
         selectedIndices.forEach(idx => {
-            lifeData[idx] = { color: currentSelectedColor || (lifeData[idx]?.color || '#fff'), text: txt || (lifeData[idx]?.text || '') };
+            lifeData[idx] = { color: currentSelectedColor || '#fff', text: txt };
         });
         sync().then(() => { renderGrid(); closeModal(); });
     };
@@ -207,18 +208,12 @@
         sync().then(() => { renderGrid(); closeModal(); });
     };
 
-    document.getElementById('close-btn').onclick = closeModal;
-
-    window.jumpToDate = () => {
+    document.getElementById('jump-date').onchange = () => {
         const target = new Date(document.getElementById('jump-date').value);
-        const birth = new Date(bdayInput.value);
+        const birth = new Date(document.getElementById('birthday-input').value);
         const idx = Math.floor((target - birth) / (1000 * 60 * 60 * 24 * 7));
         const el = document.getElementById(`cell-${idx}`);
-        if (el) {
-            document.querySelectorAll('.target-highlight').forEach(c => c.classList.remove('target-highlight'));
-            el.classList.add('target-highlight');
-            el.scrollIntoView({ behavior: 'smooth', block: 'center' });
-        }
+        if (el) el.scrollIntoView({ behavior: 'smooth', block: 'center' });
     };
 </script>
 </body>
